@@ -1,0 +1,1811 @@
+---
+title: "Failing to Follow the Herd: Factors Explaining Variations in Covid Vaccination Rates in the U.S."
+author: "Leo Yi"
+date: "`r Sys.Date()`"
+output:
+  word_document:
+    reference_docx: c:/downloads/docs/data698/refs/word_style_reference.docx
+    toc: yes
+    toc_depth: '4'
+bibliography: c:/downloads/docs/data698/refs/references.bib
+csl: c:/downloads/docs/data698/refs/apa.csl    
+---
+
+```{=html}
+<style type="text/css">
+
+  code {
+    font-family: "Consolas";
+    font-size: 10px;
+  }
+  
+  pre {
+    font-family: "Consolas";
+    font-size: 10px;
+  }
+  
+  mark {
+    background-color: whitesmoke;
+    color: black;
+  }
+
+</style>
+```
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.align = 'center')
+
+options(scipen = 9)
+
+library(knitr)
+
+library(ggplot2)
+library(scales)
+library(tidyr)
+library(dplyr)
+library(stringr)
+library(lubridate)
+library(readxl)
+
+library(inspectdf)
+library(VIM)
+library(vip)
+library(corrplot)
+library(caret)
+library(randomForest)
+library(ranger)
+
+library(fpp2)
+library(zoo)
+
+library(conflicted)
+```
+
+```{r conflicts}
+# conflict_scout()
+conflict_prefer('filter', 'dplyr')
+```
+
+```{r stored files}
+# THIS WILL DETERMINE IF THE MARKDOWN FILE IS COMPLETELY REFRESHED OR REFERENCES STORED FILES
+full_run <- FALSE
+
+# instead of rerunning models every time the file is knit, I've saved the results locally to be published faster
+
+project_files_path <- 'c:/downloads/docs/data698/project_files/' 
+
+test_results_path <- paste0(project_files_path, 'pred_test_results.csv')
+varimp_path <- paste0(project_files_path, 'top10_varimp.csv')
+
+```
+
+\pagebreak
+
+# Introduction
+
+Over the past two years, humanity has been faced with a common enemy whose name is notoriously known across the world. COVID-19, which is caused by the coronavirus SARS-CoV-2, was first officially identified in January 2020 [@allam]. The response by national leaders across the world has varied from apathy and denial to strict lockdowns. Within the United States, national and state leaders continue to push their own idea of how to face this enemy. Additionally, the public’s polarized opinions about how to handle the situation are also hindering the effectiveness of a unified strategy. These political issues are the reality of a world made up of individuals who work and live together.
+
+The scientific community confronting COVID-19 in the US, led by the CDC, has been offering updated guidance for our government, businesses, and individuals [@cdc]. The guidance was based on the information available at the time and included suggestions of lock downs, face masks, social distancing, quarantines, and vaccines. In December of 2020, the FDA issued Emergency Use Authorization for the Pfizer-BioNTech and Moderna vaccines, followed by the Janssen vaccine in February 2021 [@fda].
+
+Vaccines are proven to be an effective strategy to fight viruses. Each of the vaccines currently available have been proven safe and effective at preventing severe disease [@bajema] and have been suggested and encouraged by the CDC. The federal government set out to vaccinate the public, with the initial strategy focused on logistics – how to produce, supply, deliver, and give the vaccine to every person in the US. As of September 11, 2021 vaccinations are now currently available, for free, for all adults with 53.9% of Americans fully vaccinated [@mayo].
+
+The situation we face today is the lower than ideal vaccination rates across the country. For various personal reasons, people have chosen to refuse the vaccine, with some actively campaigning against it. The issue now relates to social and political differences rather than logistics and the goal of herd immunity seems to be out of reach [@aschwanden].
+
+The purpose of this research is to seek to understand the connections that may exist between people who ignore the science of vaccines and the collective knowledge of humanity to believe only what they choose to believe. If vaccine rates have plateaued and we can assume those who have not yet vaccinated are doubtful of science, this may be the first time we have collected data that can tell us who believes in science and humanity. This research will aim to shed some more light on who we are.
+
+\pagebreak
+
+# Literature Review
+
+As a nation with a goal to reach vaccine levels sufficient for herd immunity, it's become common knowledge that some people refuse vaccines. The anti vaccine movement has existed well before COVID, with unfounded claims that vaccines cause autism. These claims have been spread far enough that the CDC offers their official perspective on it's website in order to stand against the misinformation [@autism].
+
+In the modern world, advances in all areas of study make it impossible for any one person to know about everything. An injection of some unknown substance may lead to fear without the previous knowledge and understanding of what a vaccine is and how it works [@hesitation]. Additionally, mistrust of the government, scientists, healthcare workers, or the system altogether can lead to wild speculation about what substances are actually entering our bodies. The exposure to competing views of information and misinformation in social and mass media adds to the confusion and hinders people's ability to make a well informed decision [@hussain]. Additionally, people who are led into the anti-vaccination movement may be influenced by the misinformation spread by Donald Trump and the surrounding conservative movement, which provides a social network that is engaging, supportive, and based on feelings of community [@social_media].
+
+
+\pagebreak
+
+# Research Questions
+
+What factors can explain variations in vaccination rates in the US?
+
+If we create a projection for vaccination rates, when might we hit herd immunity (70% [@herd_immunity]), if ever?
+
+The idea behind these questions comes from the phenomena that people are choosing to go against the best known strategy humanity has formed so far, with no real effective alternative strategy. Before understanding why people might be doing this, the goal in this research is to see if we can find commonalities in people who choose to ignore the herd and the facts and believe their own version of reality. That might lead us to why vaccination rates are not currently high enough to hit herd immunity.
+
+I’m hoping to find something more interesting than variables like education or political party affiliation to explain why we’re not all on the same page.
+
+\pagebreak
+
+# Data
+
+The available data for vaccine rates, which will be the independent variable, are collected and aggregated at the country level by the Centers for Disease Control and Prevention [@vaccine_rates]. The Federal Information Processing Standard (FIPS) code will be the level at which all variables will be collected and aggregated. The CDC provides vaccination rates by county and day starting from the end of 2020, excluding Texas.
+
+The US Census provides population data by age, sex, and race [@census], which will be used both as a way to standardize all other variables as a percent of the population, as well as to check if certain age groups or ethnicity might be relevant factors in overall vaccination rates.
+
+The Association of Religion Data Archives provides rates of religious followers by denomination [@religion], however rather than using each minor sect, we'll only be looking at rates of religious people and densities of congregations to see if overall religious beliefs may affect vaccination rates.
+
+The Economic Research Service of the US Department of Agriculture was used to gather socioeconomic data related to unemployment, median household income, education attainment, poverty estimates, a rural-urban scale, and an urban influence factor [@county_socioeconomic]. Additionally, the ERS provides a dataset on economic topology, which provides additional variables related to the level of different industries by county, as well as child poverty levels [@county_topology].
+
+For political variables, the 2020 Election Results by County were used in order to assess the policy perspectives of its constituents [@election]. It should be noted that Alaska is the only state that has different FIPS codes for the counties and voting districts.
+
+An obvious factor that could influence a counties vaccination rates would be the number of cases and deaths [@deaths] experienced. A less obvious set of variables would be natality data, which includes information about babies and their mothers [@births].
+  
+Finally, some external factors were included, like temperature ranges and average preciptation [@weather], environmental quality [@environmental_quality], and crime statistics [@crime].
+
+
+```{r import required}
+
+cwd <- getwd()
+
+if (cwd == "C:/Downloads/docs") {
+  path <- 'c:/downloads/docs/data698/data/'  
+} else {
+  
+}
+
+
+# Vaccination Rates Raw Data
+# vr_path <- paste0(path, 'COVID-19_Vaccinations_in_the_United_States_County.csv')
+vr_path <- 'https://data.cdc.gov/api/views/8xkx-amqh/rows.csv'
+vr_raw <- read.csv(vr_path) 
+
+# Population Estimates Raw Data
+pop_path <- paste0(path, 'cc-est2019-alldata.csv')
+pop_raw <- read.csv(pop_path) 
+
+# 2020 Election Results
+election_path <- paste0(path, '2020_US_County_Level_Presidential_Results.csv')
+### 172 MB use website
+
+election_raw <- read.csv(election_path)
+
+```
+
+```{r import other, eval = if (full_run) TRUE else FALSE}
+
+# Religious Affliations
+rel_path <- paste0(path, 'U.S. Religion Census Religious Congregations and Membership Study, 2010 (County File).XLSX')
+rel_raw <- read_excel(rel_path)
+
+# Unemployment, Median HH Income, County Classes
+emp_path <- paste0(path, 'Unemployment.xlsx')
+emp_raw <- read_excel(emp_path, skip = 4)
+
+# Education
+edu_path <- paste0(path, 'Education.xls')
+edu_raw <- read_excel(edu_path, skip = 4)  
+  
+# Poverty Levels
+pov_path <- paste0(path, 'PovertyEstimates.xls')
+pov_raw <- read_excel(pov_path, skip = 4)
+
+# # Rural Urban Continuum Codes
+# rucc_path <- paste0(path, 'ruralurbancodes2013.xls')
+# rucc_raw <- read_excel(rucc_path)
+
+# # Urban Influence Codes
+# uic_path <- paste0(path, 'UrbanInfluenceCodes2013.xls')
+# uic_raw <- read_excel(uic_path)
+
+# Economic Typology Classes
+et_path <- paste0(path, 'ERSCountyTypology2015Edition.xls')
+et_raw <- read_excel(et_path, skip = 3)  
+
+# Covid Cases and Deaths
+cases_path <- paste0(path, 'us-counties.csv')
+# 71 MB use website
+
+cases_raw <- read.csv(cases_path)
+
+# Birth data by county
+births_path <- paste0(path, 'Natality, 2016-2019 expanded.txt')
+births_raw <- read.delim(births_path)
+
+# Birth data by state
+births2_path <- paste0(path, 'Natality, 2016-2019 expanded_states.txt')
+births2_raw <- read.delim(births2_path)
+
+# Annual Precipitation Total
+precip_path <- paste0(path, '110-pcp-202108-12.csv')
+precip_raw <- read.csv(precip_path, skip = 3)
+
+# Temperature Ranges
+temp_min_path <- paste0(path, '110-tmin-202108-12.csv')
+temp_max_path <- paste0(path, '110-tmax-202108-12.csv')
+temp_avg_path <- paste0(path, '110-tavg-202108-12.csv')
+temp_min_raw <- read.csv(temp_min_path, skip = 3)
+temp_max_raw <- read.csv(temp_max_path, skip = 3)
+temp_avg_raw <- read.csv(temp_avg_path, skip = 3)
+
+# Crime
+crime_path <- paste0(path, 'cc_B-08.xls')
+crime_raw <- read_excel(crime_path, skip = 7)
+  
+# Environmental Quality
+eq_path <- paste0(path, 'Eqidata_all_domains_2014March11.csv')
+eq_raw <- read.csv(eq_path)
+
+```
+
+```{r population adjust}
+
+# Population Rates, Latest Estimates Only
+pop <- pop_raw %>%
+  filter(YEAR == 12) # 12 = 7/1/2019 population estimate
+
+# lowercase field names
+names(pop) <- lapply(names(pop), tolower)
+
+# add FIPS field
+pop$fips <- paste0(
+  with(pop, ifelse(state < 10, paste0('0', state), state)),
+  with(pop, ifelse(county < 10, paste0('00', county), ifelse(county < 100, paste0('0', county), county)))
+)
+
+# breakdown of population by age
+age_group <- pop %>%
+  select(fips, 
+         agegrp, 
+         tot_pop
+         ) %>%
+  mutate(agegrp = paste0('ag_', agegrp)) %>%
+  spread(agegrp, tot_pop) %>%
+  mutate(pct_age_0_4 = ag_1 / ag_0,
+         pct_age_5_9 = ag_2 / ag_0,
+         pct_age_10_14 = ag_3 / ag_0,
+         pct_age_15_19 = ag_4 / ag_0,
+         pct_age_20_24 = ag_5 / ag_0,
+         pct_age_25_29 = ag_6 / ag_0,
+         pct_age_30_34 = ag_7 / ag_0,
+         pct_age_35_39 = ag_8 / ag_0,
+         pct_age_40_44 = ag_9 / ag_0,
+         pct_age_45_49 = ag_10 / ag_0,
+         pct_age_50_54 = ag_11 / ag_0,
+         pct_age_55_59 = ag_12 / ag_0,
+         pct_age_60_64 = ag_13 / ag_0,
+         pct_age_65_69 = ag_14 / ag_0,
+         pct_age_70_74 = ag_15 / ag_0,
+         pct_age_75_79 = ag_16 / ag_0,
+         pct_age_80_84 = ag_17 / ag_0,
+         pct_age_85_plus = ag_18 / ag_0
+         ) 
+
+# keep only fips and percents fields
+age_group <- age_group[,c(1, 21:ncol(age_group))]
+
+# demographic population data
+dpop <- pop %>%
+  filter(agegrp == 0) %>%
+  mutate(mf_ratio = tot_male / tot_female,
+         pct_white = (wa_male + wa_female) / tot_pop,
+         pct_black = (ba_male + ba_female) / tot_pop,
+         pct_native = (ia_male + ia_female) / tot_pop,
+         pct_asian = (aa_male + aa_female) / tot_pop,
+         pct_pacific = (na_male + na_female) / tot_pop,
+         pct_biracial = (tom_male + tom_female) / tot_pop,
+         pct_wac = (wac_male + wac_female) / tot_pop,
+         pct_hispanic = (h_male + h_female) / tot_pop
+         ) %>%
+  select(fips,
+         mf_ratio,
+         pct_white,
+         pct_black,
+         pct_native,
+         pct_asian,
+         pct_pacific,
+         pct_biracial,
+         pct_wac,
+         pct_hispanic
+         )
+  
+
+# total population data
+tpop <- pop %>%
+  filter(agegrp == 0) %>%
+  select(fips, tot_pop)
+
+```
+
+```{r religion adjust, eval = if (full_run) TRUE else FALSE}
+
+# overall rates of religion by county
+religion <- rel_raw %>%
+  as.data.frame()
+
+# lowercase field names
+names(religion) <- lapply(names(religion), tolower)
+
+# fips as 5 character string
+religion$fips <- as.character(religion$fips)
+religion$fips <- ifelse(nchar(religion$fips) == 4, paste0('0', religion$fips), religion$fips)
+
+# calculate metrics and select only relevant fields
+religion <- religion %>%
+  inner_join(tpop, by = c('fips' = 'fips')) %>%
+  mutate(congregations_per_person = totcng / tot_pop,
+         congregations_per_adherent = totcng / totadh) %>%
+  select(-stcode,
+         -stabbr,
+         -stname,
+         -cntycode,
+         -cntyname,
+         -pop2010,
+         -tot_pop
+         )
+
+# force logical fields back to numeric
+religion <- religion %>%
+  mutate_if(is.logical, as.numeric)
+
+# fill in NA with zero
+religion[is.na(religion)] <- 0
+
+religion_summary <- religion %>%
+  select(fips,
+         totrate,
+         congregations_per_person,
+         congregations_per_adherent
+         )
+
+```
+
+
+```{r employment adjust, eval = if (full_run) TRUE else FALSE}
+
+# Employment Statistics data frame
+emp <- emp_raw %>%
+  as.data.frame()
+  
+# lowercase field names
+names(emp) <- lapply(names(emp), tolower)
+
+# select fields from unemployment data set
+emp <- emp %>%
+  inner_join(tpop, by = c('fips_code' = 'fips')) %>%
+  mutate(ue_rate_2019 = unemployment_rate_2019 / 100,
+         ue_rate_2020 = unemployment_rate_2020 / 100,
+         labor_force_pct_2019 = civilian_labor_force_2019 / tot_pop,
+         labor_force_pct_2020 = civilian_labor_force_2020 / tot_pop,
+         ruc_code = factor(rural_urban_continuum_code_2013),
+         ui_code = factor(urban_influence_code_2013),
+         ) %>%
+  select(fips = fips_code,
+         ruc_code,
+         ui_code,
+         labor_force_pct_2019,
+         labor_force_pct_2020,
+         med_hh_income_2019 = median_household_income_2019,
+         med_hh_income_state_index = med_hh_income_percent_of_state_total_2019,
+         ue_rate_2019,
+         ue_rate_2020
+         )
+
+```
+
+
+```{r education adjust, eval = if (full_run) TRUE else FALSE}
+
+# Education Statistics data frame
+edu <- edu_raw %>%
+  as.data.frame()
+
+# lowercase field names
+names(edu) <- lapply(names(edu), tolower)
+
+# str(edu)
+
+edu <- edu %>%
+  mutate(sub_hs_pct = `percent of adults with less than a high school diploma, 2015-19` / 100,
+         hs_pct = `percent of adults with a high school diploma only, 2015-19` / 100,
+         some_college_pct = `percent of adults completing some college or associate's degree, 2015-19` / 100,
+         college_pct = `percent of adults with a bachelor's degree or higher, 2015-19` / 100
+         ) %>%
+  select(fips = `fips code`,
+         sub_hs_pct,
+         hs_pct,
+         some_college_pct,
+         college_pct
+         )
+
+```
+
+```{r economic typology adjust, eval = if (full_run) TRUE else FALSE}
+
+# Economic Topology Classes
+et <- et_raw %>%
+  as.data.frame()
+
+# rename fields
+names(et) <- c('fips',
+               'state',
+               'county',
+               'metro_status',
+               'economic_types',
+               'farming',
+               'mining',
+               'manufacturing',
+               'government',
+               'recreation',
+               'nonspecialized',
+               'low_education',
+               'low_employment',
+               'pop_loss',
+               'retirement_destination',
+               'persistent_poverty',
+               'persistent_child_poverty'
+               )
+
+# Exclude state and county fields
+et <- et %>%
+  select(-state, -county)
+
+# convert fields to factor datatype
+et <- et %>%
+  mutate_if(is.numeric, as.factor)
+
+```
+
+```{r election adjust}
+
+# 2020 Election Results
+election <- election_raw %>%
+  as.data.frame() 
+
+# convert fips field to 5 characters
+election$fips <- as.character(election$county_fips)
+election$fips <- ifelse(nchar(election$fips) == 4, paste0('0', election$fips), election$fips)
+election$county_fips <- NULL
+
+# calculate voter turnout and gop/dem split
+election <- election %>%
+  inner_join(tpop, by = c('fips' = 'fips')) %>%
+  mutate(voter_turnout = total_votes / tot_pop) %>%
+  select(fips,
+         voter_turnout,
+         per_gop,
+         per_dem)
+
+```
+
+```{r poverty adjust, eval = if (full_run) TRUE else FALSE}
+
+# Poverty Levels
+poverty <- pov_raw %>%
+  as.data.frame()
+
+# lowercase field names
+names(poverty) <- lapply(names(poverty), tolower)
+
+poverty <- poverty %>%
+  mutate(pov_pct_all = pctpovall_2019 / 100,
+         pov_pct_age_0_17 = pctpov017_2019 / 100,
+         pov_pct_age_5_17 = pctpov517_2019 / 100
+         ) %>%
+  select(fips = fipstxt,
+         pov_pct_all,
+         pov_pct_age_0_17,
+         pov_pct_age_5_17
+         )
+
+```
+
+
+
+
+
+```{r begin data combine}
+
+# Vaccine Rates, base data frame
+vr <- vr_raw %>%
+  as.data.frame()
+
+# lowercase fields names
+names(vr) <- lapply(names(vr), tolower)
+
+# covert data type to date
+vr$date <- as.Date(vr$date, format = '%m/%d/%Y')
+
+# convert percentage to decimal format
+vr$pct_vaccinated <- vr$series_complete_pop_pct / 100
+
+# join total population to combined data frame
+vr <- left_join(vr, tpop, by = c('fips' = 'fips')) 
+
+```
+
+```{r state_plot}
+
+# Vaccine Rates by State and Date
+state_rate <- vr %>%
+  group_by(date, state = recip_state) %>%
+  summarize(vaccinated = sum(series_complete_yes, na.rm = T),
+            total_pop = sum(tot_pop, na.rm = T),
+            pv = vaccinated / total_pop
+            ) %>%
+  filter(pv >= 0 & pv <= 1)
+
+# Line chart of vaccination rates over time, by state 2021
+state_rate %>%
+  filter(date >= '2021-01-01') %>%
+  ggplot(aes(x = date, y = pv, color = state)) +
+  geom_line() +
+  scale_y_continuous(labels = percent_format(1)) +
+  scale_x_date(labels = date_format('%b'),
+               date_breaks = '1 month') +
+  geom_vline(xintercept = as.Date('2021-08-13'), lty = 3) +
+  theme_bw() +
+  labs(x = '2021', 
+       y = 'Vaccination Rate',
+       title = 'Vaccination Rates by State')
+
+```
+
+```{r overall_rates}
+
+# Vaccination Rate Nationwide
+overall_rate <- vr %>%
+  filter(recip_state != 'TX') %>%
+  group_by(date) %>%
+  summarize(vaccinated = sum(series_complete_yes, na.rm = T),
+            total_pop = sum(tot_pop, na.rm = T),
+            pv = vaccinated / total_pop
+            )
+
+# Line Chart
+ggplot(overall_rate, aes(x = date, y = pv)) +
+  geom_line() +
+  scale_y_continuous(labels = percent_format(1),
+                     breaks = seq(0, 0.6, 0.1)) +
+  scale_x_date(labels = date_format('%b'),
+               date_breaks = '1 month') +
+  geom_vline(xintercept = as.Date('2021-08-13'), lty = 3) +
+  theme_bw() +
+  labs(x = '2021', 
+       y = 'Vaccination Rate',
+       title = 'US Continental Vaccination Rate')
+
+```
+
+```{r snapshot data}
+
+# filter vaccine rates
+vr2 <- vr %>%
+  filter(recip_state != 'TX' & recip_state != 'PR' & recip_state != 'GU' & recip_state != 'VI') %>%
+  filter(recip_county != 'Unknown County') %>%
+  select(fips,
+         date,
+         state = recip_state,
+         county = recip_county,
+         vrate = pct_vaccinated,
+         vaccinated = series_complete_yes,
+         total_population = tot_pop
+         )
+
+# Snapshot Date Set
+snap_date <- '2021-08-13'
+
+# Vaccination Rates Snapshot, excluding Texas, Territories, and Unknown Counties
+vrs <- vr2 %>%
+  filter(date == snap_date) %>%
+  select(-date,
+         -vaccinated)
+
+
+```
+
+```{r cases adjust, eval = if (full_run) TRUE else FALSE}
+
+# cases and deaths data
+cases <- cases_raw %>%
+  as.data.frame()
+
+# convert fips field to 5 characters
+cases$fips <- as.character(cases$fips)
+cases$fips <- ifelse(nchar(cases$fips) == 4, paste0('0', cases$fips), cases$fips)
+
+# cases and deaths by fips at snapshot date
+cases <- cases %>%
+  filter(date == snap_date) %>%
+  inner_join(tpop, by = c('fips' = 'fips')) %>%
+  mutate(case_rate = cases / tot_pop,
+         death_rate = deaths / tot_pop,
+         deaths_per_case = deaths / cases
+         ) %>%
+  select(fips,
+         case_rate,
+         death_rate,
+         deaths_per_case
+         )
+
+# Use NYC case/death rates for Bronx/Queens/New York Counties
+nyc_pop <- tpop %>%
+  filter(fips == '36005' |   # Bronx
+           fips == '36047' | # Brooklyn Kings County
+           fips == '36061' | # Manhattan
+           fips == '36081' | # Queens
+           fips == '36085'   # Staten Island Richmond
+           ) %>%
+  summarize(nyc_pop = sum(tot_pop))
+
+nyc_case_rates <- cases_raw %>%
+  filter(date == snap_date) %>%
+  filter(county == 'New York City') %>%
+  mutate(case_rate = cases / nyc_pop$nyc_pop,
+         death_rate = deaths / nyc_pop$nyc_pop,
+         deaths_per_case = deaths / cases,
+         key = 1
+         ) %>%
+  select(case_rate,
+         death_rate,
+         deaths_per_case,
+         key)
+
+nyc_cases <- data.frame(fips = c('36005','36047','36061','36081','36085'), key = 1) %>%
+  inner_join(nyc_case_rates, by = c('key' = 'key')) %>%
+  select(-key)
+
+cases <- bind_rows(cases, nyc_cases)
+
+```
+
+```{r births adjust, eval = if (full_run) TRUE else FALSE}
+
+# Coalesce County Rates, State Rates, by FIPS
+births <- vrs %>%
+  select(fips) %>%
+  mutate(state_code = as.numeric(substr(fips, 1, 2)),
+         county_code = as.numeric(fips)
+         ) %>%
+  left_join(births_raw, by = c('county_code' = 'County.of.Residence.Code')) %>%
+  left_join(births2_raw, by = c('state_code' = 'State.of.Residence.Code')) %>%
+  mutate(birth_rate = coalesce(Birth.Rate.x, Birth.Rate.y) / 100,
+         fertility_rate = coalesce(Fertility.Rate.x, Fertility.Rate.y) / 100,
+         avg_age_of_mother = coalesce(Average.Age.of.Mother..years..x, Average.Age.of.Mother..years..y),
+         avg_gest_age = coalesce(Average.OE.Gestational.Age..weeks..x, Average.OE.Gestational.Age..weeks..y),
+         avg_birth_weight_grams = coalesce(Average.Birth.Weight..grams..x, Average.Birth.Weight..grams..y),
+         avg_pre_pregnancy_bmi = coalesce(Average.Pre.pregnancy.BMI.x, Average.Pre.pregnancy.BMI.y),
+         avg_prenatal_visits = coalesce(Average.Number.of.Prenatal.Visits.x, Average.Number.of.Prenatal.Visits.y)
+         ) %>%
+  select(fips,
+         birth_rate,
+         fertility_rate,
+         avg_age_of_mother,
+         avg_gest_age,
+         avg_birth_weight_grams,
+         avg_pre_pregnancy_bmi,
+         avg_prenatal_visits
+         )
+
+```
+
+
+```{r precipitation and temperature adjust, eval = if (full_run) TRUE else FALSE}
+
+# Precipitation Data Adjust
+precip <- precip_raw %>%
+  as.data.frame()
+
+names(precip) <- lapply(names(precip), tolower)
+
+precip <- precip %>%
+  select(location_id = location.id,
+         precipitation = value,
+         precipitation_avg = x1901.2000.mean
+         )
+
+# Temp Min Adjust
+temp_min <- temp_min_raw %>%
+  as.data.frame()
+
+names(temp_min) <- lapply(names(temp_min), tolower)
+
+temp_min <- temp_min %>%
+  select(location_id = location.id,
+         temp_min = value,
+         temp_min_avg = x1901.2000.mean
+         )
+
+# Temp Max Adjust
+temp_max <- temp_max_raw %>%
+  as.data.frame()
+
+names(temp_max) <- lapply(names(temp_max), tolower)
+
+temp_max <- temp_max %>%
+  select(location_id = location.id,
+         temp_max = value,
+         temp_max_avg = x1901.2000.mean
+         )
+
+# Temp Avg Adjust
+temp_avg <- temp_avg_raw %>%
+  as.data.frame()
+
+names(temp_avg) <- lapply(names(temp_avg), tolower)
+
+temp_avg <- temp_avg %>%
+  select(location_id = location.id,
+         temp_avg = value,
+         temp_avg_avg = x1901.2000.mean
+         )
+
+# combine weather data into one data frame
+weather_all <- precip %>%
+  left_join(temp_min, by = c('location_id' = 'location_id')) %>%
+  left_join(temp_max, by = c('location_id' = 'location_id')) %>%
+  left_join(temp_avg, by = c('location_id' = 'location_id')) %>%
+  mutate(state = substr(location_id, 1, 2),
+         county = substr(location_id, 4, 6)
+         )
+  
+weather <- vrs %>%
+  select(fips, 
+         state
+         ) %>%
+  mutate(county = substr(fips, 3, 5)) %>%
+  inner_join(weather_all, by = c('state' = 'state', 'county' = 'county')) %>%
+  select(-state,
+         -county,
+         -location_id
+         )
+
+```
+
+
+```{r crime adjust, eval = if (full_run) TRUE else FALSE}
+
+# create crime data frame
+crime <- crime_raw %>%
+  as.data.frame()
+
+# rename fields
+names(crime) <- c('location',
+                  'footnote_for_total',
+                  'violent_total',
+                  'footnote_for_murder_and_manslaughter',
+                  'murder_and_manslaughter',
+                  'footnote_for_rape',
+                  'rape',
+                  'footnote_for_robbery',
+                  'robbery',
+                  'footnote_for_assault',
+                  'assault',
+                  'footnote_for_2000',
+                  'violent_total_2000',
+                  'footnote_for_total_property_crimes',
+                  'property_crimes_total',
+                  'footnote_for_burglary',
+                  'burglary',
+                  'footnote_for_larceny_theft',
+                  'larceny_theft',
+                  'footnote_for_motor_vehicle_theft',
+                  'motor_vehicle_theft',
+                  'property_crimes_total_2000'
+                  )
+
+# separate county and state
+crime_location_split <- str_split(crime$location, ', ', simplify = T) %>%
+  as.data.frame() %>%
+  select(county = V1,
+         state = V2) %>%
+  mutate(state = str_replace_all(state, ' 4', '')) %>%
+  mutate(state = str_replace_all(state, ' 5', '')) %>%
+  mutate(state = str_replace_all(state, ' 6', '')) %>%
+  mutate(state = str_replace_all(state, ' 7', '')) 
+
+# filter for counties level data only
+crime <- crime %>%
+  bind_cols(crime_location_split) %>%
+  filter(nchar(state) == 2)
+         
+# define target variables
+crime_vars <- c('violent_total',
+                'murder_and_manslaughter',
+                'rape',
+                'robbery',
+                'assault',
+                'violent_total_2000',
+                'property_crimes_total',
+                'burglary',
+                'larceny_theft',
+                'motor_vehicle_theft',
+                'property_crimes_total_2000'
+                )
+
+# replace character keys for null/zero and convert variables to number
+crime <- crime %>%
+  mutate_at(vars(crime_vars), ~ str_replace_all(., '(NA)', as.character(NA))) %>%
+  mutate_at(vars(crime_vars), ~ str_replace_all(., '(X)', as.character(NA))) %>%
+  mutate_at(vars(crime_vars), ~ str_replace_all(., '-', "0")) %>%
+  mutate_at(vars(crime_vars), as.numeric)
+  
+# crime by fips
+cmap <- vrs %>%
+  select(fips, state, county) %>%
+  mutate(county = str_replace_all(county, ' County', '')) %>%
+  mutate(county = str_replace_all(county, ' City and Borough', '')) %>%
+  mutate(county = str_replace_all(county, ' Borough', '')) %>%
+  mutate(county = str_replace_all(county, ' Census Area', '')) %>%
+  mutate(county = str_replace_all(county, ' Municipality', '')) %>%
+  mutate(county = str_replace_all(county, ' Parish', '')) %>%
+  mutate(county = str_replace_all(county, ' city', '')) %>%
+  left_join(crime, by = c('state' = 'state', 'county' = 'county')) %>%
+  group_by(fips) %>%
+  summarize(violent_total = sum(violent_total),
+            murder_and_manslaughter = sum(murder_and_manslaughter),
+            rape = sum(rape),
+            robbery = sum(robbery),
+            assault = sum(assault),
+            violent_total_2000 = sum(violent_total_2000),
+            property_crimes_total = sum(property_crimes_total),
+            burglary = sum(burglary),
+            larceny_theft = sum(larceny_theft),
+            motor_vehicle_theft = sum(motor_vehicle_theft),
+            property_crimes_total_2000 = sum(property_crimes_total_2000)
+            ) %>%
+  filter(!is.na(violent_total))
+
+# # check for unmatched
+# cmap_check <- cmap %>%
+#   filter(is.na(location)) %>%
+#   arrange(state, county)
+# 
+# # check for dupes
+# crime_dupes <- crime %>%
+#   group_by(location) %>%
+#   summarize(count = n()) %>%
+#   filter(count > 1)
+
+# combine new york city then redistribute rates
+crime_ny <- cmap %>%
+  filter(fips == '36047') %>% # Kings County NY
+  mutate(violent_total_rate = violent_total / nyc_pop$nyc_pop,
+         murder_and_manslaughter_rate = murder_and_manslaughter / nyc_pop$nyc_pop,
+         rape_rate = rape / nyc_pop$nyc_pop,
+         robbery_rate = robbery / nyc_pop$nyc_pop,
+         assault_rate = assault / nyc_pop$nyc_pop,
+         burglary_rate = burglary / nyc_pop$nyc_pop,
+         larceny_theft_rate = larceny_theft / nyc_pop$nyc_pop,
+         motor_vehicle_theft_rate = motor_vehicle_theft / nyc_pop$nyc_pop,
+         
+         all_crimes = (coalesce(violent_total, 0) + coalesce(property_crimes_total, 0)),
+         murder_and_manslaughter_pct = murder_and_manslaughter / all_crimes,
+         rape_pct = rape / all_crimes,
+         robbery_pct = robbery / all_crimes,
+         assault_pct = assault / all_crimes,
+         burglary_pct = burglary / all_crimes,
+         larceny_theft_pct = larceny_theft / all_crimes,
+         motor_vehicle_theft_pct = motor_vehicle_theft / all_crimes
+         ) %>%
+  select(violent_total_rate,
+         murder_and_manslaughter_rate,
+         rape_rate,
+         robbery_rate,
+         assault_rate,
+         burglary_rate,
+         larceny_theft_rate,
+         motor_vehicle_theft_rate,
+         murder_and_manslaughter_pct,
+         rape_pct,
+         robbery_pct,
+         assault_pct,
+         burglary_pct,
+         larceny_theft_pct,
+         motor_vehicle_theft_pct
+  ) %>%
+  mutate(key = 1)
+
+crime_ny_all <- vrs %>%
+    filter(fips == '36005' |   # Bronx
+           fips == '36047' | # Brooklyn Kings County
+           fips == '36061' | # Manhattan
+           fips == '36081' | # Queens
+           fips == '36085'   # Staten Island Richmond
+           ) %>%
+  select(fips) %>%
+  mutate(key = 1) %>%
+  inner_join(crime_ny, by = c('key' = 'key')) %>%
+  select(-key)
+
+
+crime_all <- cmap %>%
+  inner_join(tpop, by = c('fips' = 'fips')) %>%
+  filter(fips != '36047') %>% # Kings County NY
+  mutate(violent_total_rate = violent_total / tot_pop,
+         murder_and_manslaughter_rate = murder_and_manslaughter / tot_pop,
+         rape_rate = rape / tot_pop,
+         robbery_rate = robbery / tot_pop,
+         assault_rate = assault / tot_pop,
+         burglary_rate = burglary / tot_pop,
+         larceny_theft_rate = larceny_theft / tot_pop,
+         motor_vehicle_theft_rate = motor_vehicle_theft / tot_pop,
+         
+         all_crimes = (coalesce(violent_total, 0) + coalesce(property_crimes_total, 0)),
+         murder_and_manslaughter_pct = murder_and_manslaughter / all_crimes,
+         rape_pct = rape / all_crimes,
+         robbery_pct = robbery / all_crimes,
+         assault_pct = assault / all_crimes,
+         burglary_pct = burglary / all_crimes,
+         larceny_theft_pct = larceny_theft / all_crimes,
+         motor_vehicle_theft_pct = motor_vehicle_theft / all_crimes
+         ) %>%
+  select(fips,
+         violent_total_rate,
+         murder_and_manslaughter_rate,
+         rape_rate,
+         robbery_rate,
+         assault_rate,
+         burglary_rate,
+         larceny_theft_rate,
+         motor_vehicle_theft_rate,
+         murder_and_manslaughter_pct,
+         rape_pct,
+         robbery_pct,
+         assault_pct,
+         burglary_pct,
+         larceny_theft_pct,
+         motor_vehicle_theft_pct
+  ) %>%
+  bind_rows(crime_ny_all)
+
+# manual fill Benton, IL with zero rates, since they had zero reported crimes and div/0
+crime_all[crime_all$fips == '18007' & is.na(crime_all)] <- 0
+
+```
+
+```{r environmental quality adjust, eval = if (full_run) TRUE else FALSE}
+
+# Environmental Quality Data
+eq <- eq_raw %>%
+  as.data.frame()
+
+# convert fips field to 5 characters
+eq$fips <- as.character(eq$fips)
+eq$fips <- ifelse(nchar(eq$fips) == 4, paste0('0', eq$fips), eq$fips)
+
+eq <- eq %>%
+  select(fips,
+         
+         # AIR
+         a_pm25_mean, # particulate matter under 2.5 micrometers
+         a_pb_ln, # lead compounds
+         a_meoh_ln, # methanol
+         
+         # WATER
+         sewagenpdesperkm, # sewage permits per 1000 km of stream in county
+         indnpdesperkm, # industrial permits per 1000 km of stream in county
+         stormnpdesperkm, # storwater permits per 1000 km of stream in county
+         per_totpopss_ave, # % of population on self supply
+         
+         # LAND
+         farms_per_acre_ln, # farms per acre
+         pct_au_ln, # animal units per acre
+         
+         # BUILT
+         hwyprop, # proportion of roads that are highway, miles highways / miles total roads
+         ryprop, # proportion of roads that are primary streets, miles primary streets / miles total roads
+         traffic_fatal_rate = fatal_rate_log, # traffic fatality rate
+         pct_pub_transport_log, # % of population using public transportation
+         to_unit_rate_log, # total subsidized housing units / population
+         
+         # business type / population
+         rate_al_pn_gm_env_log, # vice
+         rate_ent_env_log, # entertainment
+         rate_ed_env_log, # education
+         rate_food_env_neg, # negative food
+         rate_food_env_pos_log, # positive food
+         rate_hc_env_log, # healthcare
+         rate_rec_env_log, # recreation
+         rate_trans_env_log, # transportation
+         rate_civic_env_log, # civic related
+         
+         # SOCIODEMOGRAPHIC
+         pct_rent_occ, # percent renter occupied
+         pct_vac_units, # pct vacant units
+         med_hh_value, # median household value
+         work_out_co, # pct working outside country
+         med_rooms, # median number of rooms per house
+         violent_rate_log # mean number of violent crimes per capita
+         )
+
+```
+
+
+```{r combined dataset, eval = if (full_run) TRUE else FALSE}
+
+# combined data
+combined_df <- vrs %>%
+  left_join(age_group, by = c('fips' = 'fips')) %>%
+  left_join(dpop, by = c('fips' = 'fips')) %>%
+  left_join(emp, by = c('fips' = 'fips')) %>%
+  left_join(edu, by = c('fips' = 'fips')) %>%
+  left_join(poverty, by = c('fips' = 'fips')) %>%
+  left_join(et, by = c('fips' = 'fips')) %>%
+  left_join(election, by = c('fips' = 'fips')) %>%
+  left_join(religion_summary, by = c('fips' = 'fips')) %>%
+  left_join(cases, by = c('fips' = 'fips')) %>%
+  left_join(births, by = c('fips' = 'fips')) %>%
+  left_join(weather, by = c('fips' = 'fips')) %>%
+  left_join(crime_all, by = c('fips' = 'fips')) %>%
+  left_join(eq, by = c('fips' = 'fips'))
+
+# glimpse(df)
+
+
+# clear existing objects
+rm(age_group,
+   births,
+   births_raw,
+   births2_raw,
+   cases,
+   cases_raw,
+   cmap,
+   crime,
+   crime_all,
+   crime_location_split,
+   crime_ny,
+   crime_ny_all,
+   crime_raw,
+   dpop,
+   edu,
+   edu_raw,
+   election,
+   election_raw,
+   emp,
+   emp_raw,
+   eq,
+   eq_raw,
+   et,
+   et_raw,
+   nyc_case_rates,
+   nyc_cases,
+   nyc_pop,
+   overall_rate,
+   pop,
+   pop_raw,
+   pov_raw,
+   poverty,
+   precip,
+   precip_raw,
+   rel_raw,
+   religion,
+   religion_summary,
+   state_rate,
+   temp_avg,
+   temp_avg_raw,
+   temp_max,
+   temp_max_raw,
+   temp_min,
+   temp_min_raw,
+   tpop,
+   # vr_raw,
+   vrs,
+   weather,
+   weather_all
+   )
+
+gc()
+
+```
+
+```{r missing data check, eval = F}
+
+# # plot fields with NA
+# combined_df %>%
+#   inspect_na %>%
+#   filter(cnt > 0) %>%
+#   show_plot()
+# 
+# # Election data does not line up for Alaska
+# x <- combined_df %>%
+#   filter(is.na(voter_turnout))
+# 
+# # 02158 and 46102 do not have economic topology data
+# x <- combined_df %>%
+#   filter(is.na(metro_status))
+# 
+# # some counties missing from weather data
+# # Hawaii, DC, and Lexington VA
+# x <- combined_df %>%
+#   filter(is.na(precipitation))
+
+# # NYC cases combined and not split by county
+# x <- combined_df %>%
+#   filter(is.na(case_rate))
+# 
+# xx <- cases_raw %>%
+#   filter(date == snap_date) %>%
+#   filter(is.na(fips))
+# 
+# xx <- cases_raw %>%
+#   filter(date == snap_date) %>%
+#   filter(state == 'New York')
+# 
+# xxx <- combined_df %>%
+#   filter(state == 'NY')
+
+# # 201 rows without crime data
+# x <- combined_df %>%
+#   filter(is.na(violent_total_rate))
+
+# # Benton, IN crime zero, div/0 error
+# x <- combined_df %>%
+#   filter(!is.na(violent_total_rate) & is.na(robbery_pct))
+
+# eq missing
+# x <- combined_df %>%
+#   filter(is.na(a_pm25_mean))
+# 
+# 
+# # # check final df for nulls again
+# df %>%
+#   inspect_na %>%
+#   filter(cnt > 0) %>%
+#   show_plot()
+
+```
+
+```{r missing data plot, eval = if (full_run) TRUE else FALSE}
+VIM::aggr(combined_df, 
+          col=c('green','red'), 
+          numbers = T, 
+          sortVars = T,
+          cex.axis = .5,
+          ylab=c("Proportion of Data", "Combinations and Percentiles")
+          ) 
+```
+
+```{r train test split, eval = if (full_run) TRUE else FALSE}
+
+# dataframe without missing values
+df <- combined_df %>%
+  filter(!is.na(combined_df$voter_turnout) & 
+           !is.na(metro_status) & 
+           !is.na(precipitation) &
+           !is.na(violent_total_rate) &
+           !is.na(a_pm25_mean) 
+         ) %>%
+  select(-fips,
+         -state,
+         -county)
+
+# stratified train/test split
+set.seed(101)
+trainIndex <- createDataPartition(df$vrate,
+                                  p = 0.75,
+                                  list = F)
+
+train <- df[trainIndex,]
+test <- df[-trainIndex,]
+
+ctrl <- trainControl(method = 'cv', number = 10)
+
+```
+
+
+talk bout how many rows we're left with and the train/test split row counts
+
+
+\pagebreak
+
+# Statistical Methods
+
+Using vaccination rates as the dependent variable, we can create linear regression models (lasso) to determine which variables have the highest impact. The independent variables will be county level data sources which are made available by the government and other reliable sources.
+
+After initial exploratory data analysis, we can look for patterns in distributions of vaccination rates as well as change in vaccination rates over time and assign classes (low / mid / high). These classes can then be compared to analyze differences in the independent variables.
+
+
+
+To project vaccination rates into the future, three methods will be compared:
+-	Vaccination rates weighted by population, as a single time series. 
+-	Multiple time series projections for each class derived from exploratory data analysis
+-	Multiple time series projections for each class determined by unsupervised clustering
+
+The final time series projection will be selected based on mean squared error of test data using the most recent vaccination rates, held out from the data used to train the models.
+
+```{r, eval = if (full_run) TRUE else FALSE}
+
+# Ridge
+library(lars)
+ridgeGrid <- data.frame(.lambda = seq(0, .1, length = 15))
+
+# fit model
+ridgeRegFit <- train(vrate ~ . ,
+                     data = train,
+                     method = 'ridge',
+                     tuneGrid = ridgeGrid,
+                     trControl = ctrl,
+                     preProc = c('center','scale'))
+
+
+# Lasso
+library(glmnet)
+lambdas <- 10^seq(2, -3, by = -.1)
+lasso <- train(vrate ~ . ,
+               data = train,
+               method = 'glmnet',
+               tuneGrid = expand.grid(alpha = 1, lambda=lambdas)
+               )
+
+
+# knn
+knnModel <- train(vrate ~ . ,
+                  data = train,
+                  method = "knn",
+                  preProc = c("center", "scale"),
+                  tuneLength = 10)
+knnModel
+
+
+
+
+# neural network
+nn_grid <- expand.grid(.decay = c(0, 0.01, 0.1),
+                       .size = c(1:10),
+                       .bag = F)
+
+nn_tune <- train(vrate ~ . ,
+                 data = train,
+                 method = 'avNNet',
+                 tuneGrid = nn_grid,
+                 trControl = ctrl,
+                 preProc = c('center', 'scale'),
+                 linout = T,
+                 trace = F,
+                 maxit = 500
+                 )
+
+# plot(nn_tune)
+
+
+# MARS
+library(earth)
+
+marsGrid <- expand.grid(.degree = 1:2, .nprune = 2:38)
+
+marsTuned <- train(vrate ~ . ,
+                   data = train,
+                   method = 'earth',
+                   tuneGrid = marsGrid,
+                   trControl = trainControl(method = 'cv')
+                   )
+
+# plot(marsTuned)
+
+
+
+# Support Vector Machines
+library(kernlab)
+
+svmTuned <- train(vrate ~ . ,
+                  data = train,
+                  method = 'svmRadial',
+                  preProc = c('center', 'scale'),
+                  tuneLength = 14,
+                  trControl = trainControl(method = 'cv')
+                  )
+
+# plot(svmTuned)
+
+
+
+
+
+
+
+ranger <- train(vrate ~ . ,
+                data = train,
+                method = 'ranger',
+                importance = 'impurity')
+
+rf <- randomForest(vrate ~ . ,
+                   data = train,
+                   importance = T,
+                   ntree = 1000
+                   )
+
+# boosted trees
+library(gbm)
+
+gbm <- train(vrate ~ . ,
+             data = train,
+             method = 'gbm', 
+             verbose = F
+             )
+
+# Cubist
+library(Cubist)
+
+cubist <- train(vrate ~ . ,
+             data = train,
+             method = 'cubist'
+             )
+
+
+# bagged tree
+library(ipred)
+
+bagg <- bagging(vrate ~ ., 
+                data = train
+                )
+
+
+
+```
+
+After training the models, the predictions on the test data set are compared to determine the best predictor.
+
+```{r model compare, eval = if (full_run) TRUE else FALSE}
+
+ridge_predict <- predict(ridgeRegFit, test)
+lasso_predict <- predict(lasso, test)
+
+knn_predict <- predict(knnModel, test)
+nn_predict <- predict(nn_tune, test)
+mars_predict <- predict(marsTuned, test)
+svm_predict <- predict(svmTuned, test)
+
+ranger_predict <- predict(ranger, test)
+rf_predict <- predict(rf, test)
+bag_predict <- predict(bagg, test)
+gbm_predict <- predict(gbm, test)
+cubist_predict <- predict(cubist, test)
+
+
+pred_test_results <- data.frame(rbind(
+  postResample(ridge_predict, test$vrate),
+  postResample(lasso_predict, test$vrate),
+  
+  postResample(knn_predict, test$vrate),
+  postResample(nn_predict, test$vrate),
+  postResample(mars_predict, test$vrate),
+  postResample(svm_predict, test$vrate),
+  
+  postResample(ranger_predict, test$vrate),
+  postResample(rf_predict, test$vrate),
+  postResample(bag_predict, test$vrate),
+  postResample(gbm_predict, test$vrate),
+  postResample(cubist_predict, test$vrate)
+),
+  row.names = c('Ridge', 'LASSO',
+                'KNN', 'Neural Network', 'MARS', 'SVM',
+                'ranger', 'Random Forest', 'Bagging', 'Boosting', 'Cubist'
+                )
+)
+```
+
+```{r modeling results from local path, eval = if (!full_run) TRUE else FALSE}
+
+modeling_results <- read.csv(test_results_path)
+important_vars <- read.csv(varimp_path)
+
+modeling_results %>%
+  arrange(RMSE)
+```
+
+Here's a look at the most important variables of the cubist model:
+
+```{r cubist var imp, eval = if (full_run) TRUE else FALSE}
+top10_varimp <- varImp(cubist)$importance %>%
+  as.data.frame() %>%
+  arrange(desc(Overall)) %>%
+  head(10)
+
+
+write.csv(pred_test_results, test_results_path, row.names = T)
+write.csv(top10_varimp, varimp_path, row.names = T)
+
+```
+
+```{r var imp from local path, eval = if (!full_run) TRUE else FALSE}
+
+important_vars %>%
+  arrange(desc(Overall))
+
+```
+
+
+```{r residual plot, eval = F}
+
+test$pred <- cubist_predict
+test$resid <- with(test, pred - vrate)
+
+ggplot(test, aes(x = vrate, y = resid)) +
+  geom_point(alpha = 0.3) +
+  geom_hline(yintercept = 0, lty = 1, color = 'purple')
+
+
+ggplot(test, aes(x = vrate, y = pred)) +
+  geom_point(alpha = 0.3) +
+  geom_abline(slope = 1, lty = 1, color = 'purple')
+
+ggplot(df, aes(x = per_gop, y = vrate)) +
+  geom_point(alpha = 0.3)
+```
+
+```{r gop distributions, eval = F}
+ggplot(df, aes(x = per_gop)) +
+  geom_density()
+
+ggplot(df, aes(x = per_gop)) +
+  geom_boxplot()
+
+```
+
+```{r data prep for time series}
+
+# Vaccination Rate Nationwide time series
+overall_vr <- vr2 %>%
+  group_by(date) %>%
+  summarize(tv = sum(vaccinated, na.rm = T),
+            tp = sum(total_population, na.rm = T),
+            pv = tv / tp
+            ) %>%
+  arrange(date)
+
+
+# political groups time series
+gop <- election %>%
+  select(fips, per_gop)
+  
+pol_vr <- 
+  vr2 %>%
+  left_join(gop, by = c('fips' = 'fips')) %>%
+  filter(!is.na(per_gop)) %>%
+  mutate(grp = ifelse(per_gop < 0.4, 'left', ifelse(per_gop > 0.6, 'right', 'center'))) %>%
+  group_by(date, grp) %>%
+  summarize(tv = sum(vaccinated, na.rm = T),
+            tp = sum(total_population, na.rm = T),
+            pv = tv / tp,
+            fips_count = n(),
+            .groups = 'drop'
+            ) %>%
+  arrange(date)
+    
+left_vr <- pol_vr %>% 
+  filter(grp == 'left')
+
+center_vr <- pol_vr %>%
+  filter(grp == 'center')
+
+right_vr <- pol_vr %>%
+  filter(grp == 'right')
+```
+
+
+```{r political group summary}
+
+# summary of political affliation groups
+pol_summary <- pol_vr[1:3,] %>%
+  mutate(total_population_in_millions = round(tp / 1e6, 1),
+         avg_population_per_fip_in_thousands = round(tp / fips_count / 1e3, 1)
+         ) %>%
+  select(grp,
+         total_population_in_millions,
+         fips_count,
+         avg_population_per_fip_in_thousands)
+
+pol_summary
+
+# get population by group
+left_summary <- pol_vr[1:3,] %>%
+  filter(grp == 'left')
+
+left_pop <- left_summary$tp
+
+center_summary <- pol_vr[1:3,] %>%
+  filter(grp == 'center')
+
+center_pop <- center_summary$tp
+
+right_summary <- pol_vr[1:3,] %>%
+  filter(grp == 'right')
+
+right_pop <- right_summary$tp
+
+```
+
+```{r train time series models}
+
+# number of dates
+n <- nrow(overall_vr)
+
+# train test split at 80%
+train_rows <- floor(n * 0.8)
+test_rows <- n - train_rows
+
+# split training and test sets
+ovr_train <- overall_vr[1:train_rows,]
+ovr_test <- overall_vr[(train_rows + 1):n,]
+
+left_train <- left_vr[1:train_rows,]
+left_test <- left_vr[(train_rows + 1):n,]
+
+center_train <- center_vr[1:train_rows,]
+center_test <- center_vr[(train_rows + 1):n,]
+
+right_train <- right_vr[1:train_rows,]
+right_test <- right_vr[(train_rows + 1):n,]
+
+
+# time series objects
+ots <- ts(overall_vr$pv, start = c(2020,347), frequency = 365)
+ots_train <- ts(ovr_train$pv, start = c(2020,347), frequency = 365)
+
+left <- ts(left_vr$pv, start = c(2020,347), frequency = 365)
+left_train <- ts(left_train$pv, start = c(2020,347), frequency = 365)
+
+center <- ts(center_vr$pv, start = c(2020,347), frequency = 365)
+center_train <- ts(center_train$pv, start = c(2020,347), frequency = 365)
+
+right <- ts(right_vr$pv, start = c(2020,347), frequency = 365)
+right_train <- ts(right_train$pv, start = c(2020,347), frequency = 365)
+
+
+# create models based off training data
+ots_arima <- ots_train %>% auto.arima()
+ots_ets <- ots_train %>% ets()
+
+left_arima <- left_train %>% auto.arima()
+left_ets <- left_train %>% ets()
+
+center_arima <- center_train %>% auto.arima()
+center_ets <- center_train %>% ets()
+
+right_arima <- right_train %>% auto.arima()
+right_ets <- right_train %>% ets()
+
+```
+
+Overall vaccine rates `auto.arima()` accuracy:
+
+```{r eval overall ts arima}
+# evaluate accuracy of arima
+ots_arima %>%
+  forecast(h = test_rows) %>%
+  accuracy(ots)
+```
+
+Overall vaccine rates `ets()` accuracy:
+
+```{r eval overall ts ets}
+# evaluate accuracy of ets
+ots_ets %>%
+  forecast(h = test_rows) %>%
+  accuracy(ots)
+```
+
+```{r compare overall ts models}
+fa_p <- ots_arima %>%
+  forecast(h = test_rows, level = 0)
+
+fe_p <- ots_ets %>%
+  forecast(h = test_rows, level = 0)
+
+# I can't figure out how to add a legend to this!!!
+ots %>%
+  autoplot(color = 'black') +
+  autolayer(fa_p, series = 'ARIMA') +
+  autolayer(fe_p, series = 'Exponential Smoothing') +
+  labs(color = 'fits',
+       x = '',
+       title = 'Overall US Vaccine Rates Forecast') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent) +
+  theme_bw() +
+  guides(color = guide_legend()) +
+  theme(legend.position = 'bottom')
+  
+```
+
+```{r final overall forecast}
+
+final_arima <- ots %>% auto.arima()
+
+final_forecast <- final_arima %>%
+  forecast(h = 365)
+
+final_forecast2 <- final_arima %>%
+  forecast(h = 365, level = 0)
+
+ots %>%
+  autoplot(color = 'black') +
+  autolayer(final_forecast, color = 'purple', alpha = 0.3) +
+  labs(color = 'fits',
+       x = '',
+       title = 'Overall Vaccine Rates Forecast',) +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent_format(accuracy = 1), limits = c(0,1), breaks = seq(0,1,0.1)) +
+  theme_bw() +
+  geom_hline(yintercept = 0.7, lty = 3)
+
+```
+
+Left wing vaccine rates `auto.arima()` accuracy:
+
+```{r eval left ts arima}
+# evaluate accuracy of arima
+left_arima %>%
+  forecast(h = test_rows) %>%
+  accuracy(left)
+```
+
+Left wing vaccine rates `ets()` accuracy:
+
+```{r eval left ts ets}
+# evaluate accuracy of ets
+left_ets %>%
+  forecast(h = test_rows) %>%
+  accuracy(left)
+```
+
+```{r left forecast comparison}
+left_fa_p <- left_arima %>%
+  forecast(h = test_rows, level = 0)
+
+left_fe_p <- left_ets %>%
+  forecast(h = test_rows, level = 0)
+
+left %>%
+  autoplot(color = 'black') +
+  autolayer(left_fa_p, series = 'ARIMA') +
+  autolayer(left_fe_p, series = 'Exponential Smoothing') +
+  labs(color = 'fits',
+       x = '',
+       title = 'Left Wing Vaccine Rates',
+       subtitle = 'ARMIA in Red and ETS in blue') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent) +
+  theme_bw() +
+  guides(color = guide_legend()) +
+  theme(legend.position = 'bottom')
+  
+```
+
+Center vaccine rates `auto.arima()` accuracy:
+
+```{r eval center ts arima}
+# evaluate accuracy of arima
+center_arima %>%
+  forecast(h = test_rows) %>%
+  accuracy(center)
+```
+
+Center vaccine rates `ets()` accuracy:
+
+```{r eval center ts ets}
+# evaluate accuracy of ets
+center_ets %>%
+  forecast(h = test_rows) %>%
+  accuracy(center)
+```
+
+```{r center forecast comparison}
+center_fa_p <- center_arima %>%
+  forecast(h = test_rows, level = 0)
+
+center_fe_p <- center_ets %>%
+  forecast(h = test_rows, level = 0)
+
+center %>%
+  autoplot(color = 'black') +
+  autolayer(center_fa_p, series = 'ARIMA') +
+  autolayer(center_fe_p, series = 'Exponential Smoothing') +
+  labs(color = 'fits',
+       x = '',
+       title = 'Center Vaccine Rates',
+       subtitle = 'ARMIA in Red and ETS in blue') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent) +
+  theme_bw() +
+  guides(color = guide_legend()) +
+  theme(legend.position = 'bottom')
+  
+```
+
+Right wing vaccine rates `auto.arima()` accuracy:
+
+```{r eval right ts arima}
+# evaluate accuracy of arima
+right_arima %>%
+  forecast(h = test_rows) %>%
+  accuracy(right)
+```
+
+Right wing vaccine rates `ets()` accuracy:
+
+```{r eval right ts ets}
+# evaluate accuracy of ets
+right_ets %>%
+  forecast(h = test_rows) %>%
+  accuracy(right)
+```
+
+```{r right forecast comparison}
+right_fa_p <- right_arima %>%
+  forecast(h = test_rows, level = 0)
+
+right_fe_p <- right_ets %>%
+  forecast(h = test_rows, level = 0)
+
+right %>%
+  autoplot(color = 'black') +
+  autolayer(right_fa_p, series = 'ARIMA') +
+  autolayer(right_fe_p, series = 'Exponential Smoothing') +
+  labs(color = '',
+       x = '',
+       title = 'Right Wing Vaccine Rates',
+       subtitle = 'ARMIA in Red and ETS in blue') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent_format(accuracy=1)) +
+  theme_bw() +
+  guides(color = guide_legend()) +
+  theme(legend.position = 'bottom')
+  
+  
+```
+
+```{r political group forecast plot}
+
+left_final_fc <- left %>% ets()
+center_final_fc <- center %>% auto.arima()
+right_final_fc <- right %>% ets()
+
+left_fc <- left_final_fc %>%
+  forecast(h = 365, level = 0)
+
+center_fc <- center_final_fc %>%
+  forecast(h = 365, level = 0)
+
+right_fc <- right_final_fc %>%
+  forecast(h = 365)
+
+left %>%
+  autoplot(color = 'blue') +
+  autolayer(left_fc, series = 'Left Wing', lty = 2) +
+  autolayer(right, color = 'red') +
+  autolayer(right_fc, series = 'Right Wing', lty = 2, alpha = 0.2) +
+  autolayer(center, color = 'orange') +
+  autolayer(center_fc, series = 'Center', lty = 2) +
+  labs(color = '',
+       x = '',
+       title = 'Vaccine Rates by Political Affliation Forecast') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent_format(accuracy = 1), breaks = seq(0,0.9,0.1)) +
+  theme_bw() +
+  geom_hline(yintercept = 0.7, lty = 3) +
+  guides(color = guide_legend()) +
+  scale_color_manual(breaks = c('Left Wing', 'Center', 'Right Wing'),
+                     values = c('blue','orange', 'red')) +
+  theme(legend.position = 'bottom')
+
+```
+
+```{r wtg avg forecast}
+
+wtg_avg_ts <- (
+  (left_fc$mean * left_pop) + (center_fc$mean * center_pop) + (right_fc$mean * right_pop)
+) / (left_pop + center_pop + right_pop)
+
+ots %>%
+  autoplot(color = 'black') +
+  autolayer(final_forecast2, series = 'Overall') +
+  autolayer(wtg_avg_ts, series = 'Weighted by Political Affliation') +
+  labs(color = '',
+       x = '',
+       title = 'Vaccine Rates Forecast Comparison') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent_format(accuracy = 1), breaks = seq(0,0.9,0.1)) +
+  theme_bw() +
+  geom_hline(yintercept = 0.7, lty = 3) +
+  guides(color = guide_legend()) +
+  scale_color_manual(values = c('purple','brown')) +
+  theme(legend.position = 'bottom')
+  
+
+```
+
+
+\pagebreak
+
+# References\
