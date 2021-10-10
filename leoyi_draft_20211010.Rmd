@@ -158,19 +158,21 @@ Based on current research, political party affiliation seems to be a major facto
 
 # Data
 
-The available data for vaccine rates, which will be the independent variable, are collected and aggregated at the country level by the Centers for Disease Control and Prevention [@vaccine_rates]. The Federal Information Processing Standard (FIPS) code will be the level at which all variables will be collected and aggregated. The CDC provides vaccination rates by county and day starting from the end of 2020, excluding Texas.
+The available data for vaccine rates are aggregated at the country and day level by the Centers for Disease Control and Prevention [@vaccine_rates]. The Federal Information Processing Standard (FIPS) code will be the county level code which all variables will be collected and aggregated. The CDC provides vaccination rates starting from the end of 2020, excluding Texas.
 
-The US Census provides population data by age, sex, and race [@population], which will be used both as a way to standardize all other variables as a percent of the population, as well as to check if certain age groups or ethnicity might be relevant factors in overall vaccination rates.
+The US Census Bureau provides population data by age, sex, and race [@population], which will be used both as a way to standardize all other variables as a percent of the population, as well as to check if certain age groups or ethnicity might be relevant factors in overall vaccination rates.
 
-The Association of Religion Data Archives provides rates of religious followers by denomination [@religion], however rather than using each minor sect, we'll only be looking at rates of religious people and densities of congregations to see if overall religious beliefs may affect vaccination rates.
+The Association of Religion Data Archives provides rates of religious followers by denomination [@religion], however rather than using each minor sect, we'll only be looking at rates of religious people in general and densities of any religious congregations to see if religious beliefs may affect vaccination rates.
 
-The Economic Research Service of the US Department of Agriculture was used to gather socioeconomic data related to unemployment, median household income, education attainment, poverty estimates, a rural-urban scale, and an urban influence factor [@county_socioeconomic]. Additionally, the ERS provides a dataset on economic topology, which provides additional variables related to the level of different industries by county, as well as child poverty levels [@county_topology].
+The Economic Research Service of the US Department of Agriculture was used to gather socioeconomic data related to unemployment, median household income, education attainment, poverty estimates, a rural-urban scale, and an urban influence factor [@county_socioeconomic]. Additionally, the ERS provides a data on economic topology, which provides additional variables related to the level of different industries by county, as well as child poverty levels [@county_typology].
 
-For political variables, the 2020 Election Results by County were used in order to assess the policy perspectives of its constituents [@election]. It should be noted that Alaska is the only state that has different FIPS codes for the counties and voting districts.
+For political factors, the 2020 Election Results by County were used in order to assess the policy perspectives of its constituents [@election]. It should be noted that Alaska is the only state that has different FIPS codes for the counties and voting districts, which makes vaccine rates and election results incompatible.
 
-An obvious factor that could influence a counties vaccination rates would be the number of cases and deaths [@deaths] experienced. A less obvious set of variables would be natality data, which includes information about babies and their mothers [@births].
+An obvious factor that could influence a counties vaccination rates would be the number of COVID related cases and deaths [@deaths] experienced. A less obvious set of variables would be related to birth data, which includes information about babies and their mothers [@births].
   
-Finally, some external factors were included, like temperature ranges and average preciptation [@weather], environmental quality [@environmental_quality], and crime statistics [@crime].
+Finally, some external factors were included, like temperature ranges and average precipitation [@weather], environmental quality [@environmental_quality], and crime statistics [@crime].
+
+There are 2,888 observations or counties after excluding Texas and island territories. After all the variables have been joined, there are 233 counties with missing data which have been omitted from the final dataset, leaving 2,665 complete observations. This includes 1 independent variable, vaccination rate, and 125 dependent variables.
 
 
 ```{r import required}
@@ -570,7 +572,9 @@ state_rate %>%
 
 ```
 
-Looking at the plot above showing rates for all states since the beginning of 2021, the vertical dotted line represents August 13th, which is a Friday. This date was chosen as the snapshot date because it is between corrections, before mandates were issued, and also lagged from the present in order to include data that comes in late.
+
+Looking at the plot above showing rates for all states since the beginning of 2021, the vertical dotted line represents August 13th, which is a Friday. This date was chosen as the snapshot date because it is between corrections, before mandates were issued, and also lagged from the present in order to include data that comes in late. \
+
 
 ```{r overall_rates}
 
@@ -1217,21 +1221,19 @@ ctrl <- trainControl(method = 'cv', number = 10)
 
 ```
 
-There are 2,888 observations or counties after excluding Texas and island territories. After all the variables have been joined, there are 233 counties with missing data which have been omitted from the final dataset or leaves 2,665 observations. This includes 1 independent variable, vaccination rate, and 125 dependent variables.
-
 \pagebreak
 
 # Statistical Methods
 
 Using vaccination rates as the dependent variable, we can create supervised machine learning models to determine which variables have the highest impact. The independent variables will be county level data sources which are made available by the government and the dependent variables have been sourced from the other government and other organizations. 
 
-With 2,665 observations, the data will be split into 75% as a training group with 2001 observations and 25% as a test group with 664 observations. Each of the machine learning models will use all the variables and we will determine the final model which has the lowest validation error. After determining the relatively best model, we can assess the variable importance levels.
+With 2,665 observations, the data will be split into 75% as a training group with 2,001 observations and 25% as a test group with 664 observations. Each of the machine learning models will use all variables, with all models except decision trees using 10 fold cross validation. We will determine the final model which has the lowest validation error in order to assess the most important variables.
 
 Finally, we can check the distributions of vaccination rates based on the most important variables and assign classes (low / mid / high). We will create two forecasts, one using the overall US vaccination rates as a time series, and another using each of the classes as independent time series. The latter group will be combined, weighted by population, and compared to the overall forecast. This will allow us to estimate when the US might reach herd immunity of 70% vaccinated. 
 
-The rates provided are based on the population considered, so the real rates including all counties will vary.
+The rates provided are based on the population considered, so the true overall US rates including all counties will vary.
 
-The final time series projection will be selected based on the error of test data using the most recent vaccination rates, held out from the data used to train the models.
+The final time series projection will be selected based on the measure of error against test data using the most recent vaccination rates, held out from the data used to train the models.
 
 ```{r, eval = if (full_run) TRUE else FALSE}
 
@@ -1406,7 +1408,7 @@ pred_test_results <- data.frame(rbind(
 
 \pagebreak
 
-#### Model Validation Results
+### Model Validation Results \
 
 ```{r modeling results from local path, eval = if (!full_run) TRUE else FALSE}
 
@@ -1417,7 +1419,7 @@ modeling_results %>%
   arrange(RMSE)
 ```
 
-#### Variable Importance
+### Variable Importance
 
 Here's a look at the most important variables of the cubist model:
 
@@ -1508,7 +1510,7 @@ right_vr <- pol_vr %>%
   filter(grp == 'right')
 ```
 
-#### Political Classes
+### Political Classes \
 
 ```{r political group summary}
 
@@ -1543,7 +1545,7 @@ right_pop <- right_summary$tp
 
 ```
 
-Since `per_gop` was by far the most important variable, we'll use it to classify each of the counties. The variable `per_gop` represents the percent of the county who voted for the GOP in the 2020 election. We can then classify each county as left leaning with less than 40% voting Republican, right leaning with greater than 60% of the county voting Republican, or in the center with 40 - 60% of the county voting Republican. 
+Since `per_gop` was by far the most important variable, we'll use it to classify each of the counties. The variable `per_gop` represents the percent of the county who voted for the GOP in the 2020 election. We can then classify each county as left leaning with less than 40% voting Republican, right leaning with greater than 60% of the county voting Republican, or in the center with 40 - 60% of the county voting Republican. \
 
 ```{r train time series models}
 
@@ -1601,6 +1603,8 @@ The vaccine rate data at the time of publishing has 301 days of data and we'll b
 
 \pagebreak
 
+### Forecasts
+
 #### Overall Forecast Results
 
 Overall vaccine rates `auto.arima()` accuracy:
@@ -1620,6 +1624,8 @@ ots_ets %>%
   forecast(h = test_rows) %>%
   accuracy(ots)
 ```
+
+\
 
 ```{r compare overall ts models}
 fa_p <- ots_arima %>%
@@ -1644,9 +1650,9 @@ ots %>%
   
 ```
 
-Looking at forecasting overall US vaccine rates using ARIMA and exponential smoothing, the ARIMA model produces a slightly more accurate forecast, which we'll use for the overall forecast.
+Looking at forecasting overall US vaccine rates using ARIMA and exponential smoothing, the ARIMA model produces a slightly more accurate forecast, which we'll use for the overall forecast.  
 
-#### Retrained Final Forecast, Overall US
+##### Retrained Final Forecast, Overall US
 
 ```{r final overall forecast}
 
@@ -1699,6 +1705,8 @@ left_ets %>%
   accuracy(left)
 ```
 
+\
+
 ```{r left forecast comparison}
 left_fa_p <- left_arima %>%
   forecast(h = test_rows, level = 0)
@@ -1746,6 +1754,8 @@ center_ets %>%
   accuracy(center)
 ```
 
+\
+
 ```{r center forecast comparison}
 center_fa_p <- center_arima %>%
   forecast(h = test_rows, level = 0)
@@ -1792,6 +1802,8 @@ right_ets %>%
   forecast(h = test_rows) %>%
   accuracy(right)
 ```
+
+\
 
 ```{r right forecast comparison}
 right_fa_p <- right_arima %>%
@@ -1889,7 +1901,7 @@ ots %>%
 
 ```
 
-Comparing the forecasts on the test set show both models with very low test error.
+Comparing the forecasts on the test set show both models with very low test error. \
 
 Overall US vaccine rates ARIMA error:
 
@@ -1907,6 +1919,8 @@ Weighted Average Time Series Test error:
 wtg_avg_train %>%
   accuracy(ots)
 ```
+
+\
 
 The overall forecast seems to have a slightly lower error based on RMSE. Its possible that the change in trend seen in the right leaning class is being averaged in total and leading to a smoother trend overall.
 
@@ -1944,7 +1958,7 @@ The politically weighted forecast slows down the overall rate and suggests herd 
 
 \pagebreak
 
-### Discussion of Results
+# Discussion of Results
 
 The attempt to gather as many variables as possible did not lead to any surprising results and resulted in validating earlier research relating to the online behavior of conservatives [@social_media]. The percent of the population who graduated from college was the 2nd most important variable, but still about half as important as the percent of the voters in a county who voted for Donald Trump. The percent of people who did not graduate high school was the 4th most important variable, further validating the assumption that education affects an individual's ability to understand vaccination and their susceptibility to misinformation online. 
 
@@ -1952,7 +1966,7 @@ The average age of mother at birth and the average weight of a baby were the 3rd
 
 Finally, using the data we have available, we can project that the US could hit herd immunity before the start of summer 2022. This would be possible if we continued vaccinating the population at the current pace, but it's entirely possible the rate of vaccinations slows and reaches a plateau as we face the sector of the population who refuse to vaccinate. This could keep us from reaching herd immunity as a nation, even if certain left leaning and moderate counties may have already reached over 70% vaccinated.
 
-Validating earlier research suggests that improving education could have long term benefits for receptiveness to the understanding of vaccines as well as reducing the impact of misinformation, while the short term strategy includes fighting misinformation and educate the public about vaccines.
+Validating earlier research suggests that improving education could have long term benefits for receptiveness to the understanding of vaccines as well as reducing the impact of misinformation, while the short term strategy includes actively fighting against misinformation and educating the adult public about vaccines through marketing, or other forms that reach beyond schools.
 
 \pagebreak
 
