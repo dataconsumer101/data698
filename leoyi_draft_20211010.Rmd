@@ -27,13 +27,22 @@ csl: c:/downloads/docs/data698/refs/apa.csl
   mark {
     background-color: whitesmoke;
     color: black;
+    font-size: 10px;
+  }
+  
+  body, td {
+   font-size: 10px;
+  }
+  
+  code.r {
+    font-size: 10px;
   }
 
 </style>
 ```
 
 ```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8, fig.align = 'center')
+knitr::opts_chunk$set(echo = FALSE, warning = FALSE, message = FALSE, fig.width = 8)
 
 options(scipen = 9)
 
@@ -67,13 +76,42 @@ conflict_prefer('filter', 'dplyr')
 ```
 
 ```{r stored files}
+
 # THIS WILL DETERMINE IF THE MARKDOWN FILE IS COMPLETELY REFRESHED OR REFERENCES STORED FILES
 full_run <- FALSE
 
+
+# check current working directory
+cwd <- getwd()
+
+
+# if this is on Leo's local machine use local folder, otherwise get files from git repo
+if (cwd == "C:/Downloads/docs/data698") {
+  local_source <- TRUE
+} else {
+  local_source <- FALSE
+}
+
+# # local source manual override
+# local_source <- FALSE
+
+
+# path2 is for large files not stored in github
+if (local_source) {
+  
+  path <- 'c:/downloads/docs/data698/data/'  
+  path2 <- 'c:/downloads/docs/data698_local/data/'
+  project_files_path <- 'c:/downloads/docs/data698/project_files/' 
+  
+} else {
+  
+  path <- 'https://raw.githubusercontent.com/dataconsumer101/data698/main/data/'
+  project_files_path <- 'https://raw.githubusercontent.com/dataconsumer101/data698/main/project_files/'
+  
+}
+
+# PROJECT FILES PATH ---
 # instead of rerunning models every time the file is knit, I've saved the results locally to be published faster
-
-project_files_path <- 'c:/downloads/docs/data698/project_files/' 
-
 test_results_path <- paste0(project_files_path, 'pred_test_results.csv')
 varimp_path <- paste0(project_files_path, 'top10_varimp.csv')
 
@@ -97,9 +135,11 @@ The purpose of this research is to seek to understand the connections that may e
 
 # Literature Review
 
-As a nation with a goal to reach vaccine levels sufficient for herd immunity, it's become common knowledge that some people refuse vaccines. The anti vaccine movement has existed well before COVID, with unfounded claims that vaccines cause autism. These claims have been spread far enough that the CDC offers their official perspective on it's website in order to stand against the misinformation [@autism].
+As a nation with a goal to reach vaccine levels sufficient for herd immunity, a major obstacle is that some people refuse vaccines. The anti-vaccine movement has existed well before COVID, with unfounded claims that vaccines cause autism. These claims have been spread far enough that the CDC offers their official perspective on it's website in order to clarify the now common misinformation [@autism].
 
-In the modern world, advances in all areas of study make it impossible for any one person to know about everything. An injection of some unknown substance may lead to fear without the previous knowledge and understanding of what a vaccine is and how it works [@hesitation]. Additionally, mistrust of the government, scientists, healthcare workers, or the system altogether can lead to wild speculation about what substances are actually entering our bodies. The exposure to competing views of information and misinformation in social and mass media adds to the confusion and hinders people's ability to make a well informed decision [@hussain]. Additionally, people who are led into the anti-vaccination movement may be influenced by the misinformation spread by Donald Trump and the surrounding conservative movement, which provides a social network that is engaging, supportive, and based on feelings of community [@social_media].
+In the modern world, advances in all areas of study make it impossible for any one person to know about everything. An injection of some unknown substance may lead to fear without the previous knowledge and understanding of what a vaccine is and how it works [@hesitation]. Additionally, mistrust of the government, scientists, healthcare workers, or the system altogether can lead to wild speculation about what substances are actually entering our bodies. 
+
+The exposure to competing views of information and misinformation in social and mass media adds to the confusion and hinders people's ability to make a well informed decision [@hussain]. Additionally, people who are led into the anti-vaccination movement may be influenced by the misinformation spread by Donald Trump and the surrounding conservative movement, which provides a social network that is engaging, supportive, and based on feelings of community [@social_media].
 
 
 \pagebreak
@@ -108,11 +148,11 @@ In the modern world, advances in all areas of study make it impossible for any o
 
 What factors can explain variations in vaccination rates in the US?
 
-If we create a projection for vaccination rates, when might we hit herd immunity (70% [@herd_immunity]), if ever?
+If we create a projection for vaccination rates, when might we hit herd immunity of 70% vaccination rates [@herd_immunity], if ever?
 
 The idea behind these questions comes from the phenomena that people are choosing to go against the best known strategy humanity has formed so far, with no real effective alternative strategy. Before understanding why people might be doing this, the goal in this research is to see if we can find commonalities in people who choose to ignore the herd and the facts and believe their own version of reality. That might lead us to why vaccination rates are not currently high enough to hit herd immunity.
 
-I’m hoping to find something more interesting than variables like education or political party affiliation to explain why we’re not all on the same page.
+Based on current research, political party affiliation seems to be a major factor affecting vaccination rates. Additionally, it's possible that education would affect people's willingness to accept and trust modern scientific knowledge and also be less likely to be influenced by misinformation campaigns in social media [@social_media]. It's not clear whether other county level factors will show correlations, but the idea is to check whether we can find any statistically signficant factors that affect vaccination rates, in order to further consider why these connections may exist. 
 
 \pagebreak
 
@@ -120,7 +160,7 @@ I’m hoping to find something more interesting than variables like education or
 
 The available data for vaccine rates, which will be the independent variable, are collected and aggregated at the country level by the Centers for Disease Control and Prevention [@vaccine_rates]. The Federal Information Processing Standard (FIPS) code will be the level at which all variables will be collected and aggregated. The CDC provides vaccination rates by county and day starting from the end of 2020, excluding Texas.
 
-The US Census provides population data by age, sex, and race [@census], which will be used both as a way to standardize all other variables as a percent of the population, as well as to check if certain age groups or ethnicity might be relevant factors in overall vaccination rates.
+The US Census provides population data by age, sex, and race [@population], which will be used both as a way to standardize all other variables as a percent of the population, as well as to check if certain age groups or ethnicity might be relevant factors in overall vaccination rates.
 
 The Association of Religion Data Archives provides rates of religious followers by denomination [@religion], however rather than using each minor sect, we'll only be looking at rates of religious people and densities of congregations to see if overall religious beliefs may affect vaccination rates.
 
@@ -135,28 +175,22 @@ Finally, some external factors were included, like temperature ranges and averag
 
 ```{r import required}
 
-cwd <- getwd()
-
-if (cwd == "C:/Downloads/docs") {
-  path <- 'c:/downloads/docs/data698/data/'  
+if (local_source) {
+  vr_path <- paste0(path2, 'COVID-19_Vaccinations_in_the_United_States_County.csv')
+  pop_path <- paste0(path2, 'cc-est2019-alldata.csv')
 } else {
-  
+  vr_path <- 'https://data.cdc.gov/api/views/8xkx-amqh/rows.csv'
+  pop_path <- 'https://www2.census.gov/programs-surveys/popest/datasets/2010-2019/counties/asrh/cc-est2019-alldata.csv'  
 }
 
-
 # Vaccination Rates Raw Data
-# vr_path <- paste0(path, 'COVID-19_Vaccinations_in_the_United_States_County.csv')
-vr_path <- 'https://data.cdc.gov/api/views/8xkx-amqh/rows.csv'
 vr_raw <- read.csv(vr_path) 
 
 # Population Estimates Raw Data
-pop_path <- paste0(path, 'cc-est2019-alldata.csv')
 pop_raw <- read.csv(pop_path) 
 
 # 2020 Election Results
 election_path <- paste0(path, '2020_US_County_Level_Presidential_Results.csv')
-### 172 MB use website
-
 election_raw <- read.csv(election_path)
 
 ```
@@ -179,21 +213,16 @@ edu_raw <- read_excel(edu_path, skip = 4)
 pov_path <- paste0(path, 'PovertyEstimates.xls')
 pov_raw <- read_excel(pov_path, skip = 4)
 
-# # Rural Urban Continuum Codes
-# rucc_path <- paste0(path, 'ruralurbancodes2013.xls')
-# rucc_raw <- read_excel(rucc_path)
-
-# # Urban Influence Codes
-# uic_path <- paste0(path, 'UrbanInfluenceCodes2013.xls')
-# uic_raw <- read_excel(uic_path)
-
 # Economic Typology Classes
 et_path <- paste0(path, 'ERSCountyTypology2015Edition.xls')
 et_raw <- read_excel(et_path, skip = 3)  
 
 # Covid Cases and Deaths
-cases_path <- paste0(path, 'us-counties.csv')
-# 71 MB use website
+if (local_source) {
+  cases_path <- paste0(path2, 'us-counties.csv')
+} else {
+  cases_path <- 'https://raw.githubusercontent.com/nytimes/covid-19-data/master/us-counties.csv'
+} 
 
 cases_raw <- read.csv(cases_path)
 
@@ -520,7 +549,8 @@ state_rate <- vr %>%
   group_by(date, state = recip_state) %>%
   summarize(vaccinated = sum(series_complete_yes, na.rm = T),
             total_pop = sum(tot_pop, na.rm = T),
-            pv = vaccinated / total_pop
+            pv = vaccinated / total_pop,
+            .groups = 'drop'
             ) %>%
   filter(pv >= 0 & pv <= 1)
 
@@ -540,6 +570,8 @@ state_rate %>%
 
 ```
 
+Looking at the plot above showing rates for all states since the beginning of 2021, the vertical dotted line represents August 13th, which is a Friday. This date was chosen as the snapshot date because it is between corrections, before mandates were issued, and also lagged from the present in order to include data that comes in late.
+
 ```{r overall_rates}
 
 # Vaccination Rate Nationwide
@@ -548,7 +580,8 @@ overall_rate <- vr %>%
   group_by(date) %>%
   summarize(vaccinated = sum(series_complete_yes, na.rm = T),
             total_pop = sum(tot_pop, na.rm = T),
-            pv = vaccinated / total_pop
+            pv = vaccinated / total_pop,
+            .groups = 'drop'
             )
 
 # Line Chart
@@ -565,6 +598,8 @@ ggplot(overall_rate, aes(x = date, y = pv)) +
        title = 'US Continental Vaccination Rate')
 
 ```
+
+
 
 ```{r snapshot data}
 
@@ -1049,7 +1084,7 @@ rm(age_group,
    dpop,
    edu,
    edu_raw,
-   election,
+   # election,
    election_raw,
    emp,
    emp_raw,
@@ -1077,7 +1112,7 @@ rm(age_group,
    temp_max_raw,
    temp_min,
    temp_min_raw,
-   tpop,
+   # tpop,
    # vr_raw,
    vrs,
    weather,
@@ -1182,26 +1217,21 @@ ctrl <- trainControl(method = 'cv', number = 10)
 
 ```
 
-
-talk bout how many rows we're left with and the train/test split row counts
-
+There are 2,888 observations or counties after excluding Texas and island territories. After all the variables have been joined, there are 233 counties with missing data which have been omitted from the final dataset or leaves 2,665 observations. This includes 1 independent variable, vaccination rate, and 125 dependent variables.
 
 \pagebreak
 
 # Statistical Methods
 
-Using vaccination rates as the dependent variable, we can create linear regression models (lasso) to determine which variables have the highest impact. The independent variables will be county level data sources which are made available by the government and other reliable sources.
+Using vaccination rates as the dependent variable, we can create supervised machine learning models to determine which variables have the highest impact. The independent variables will be county level data sources which are made available by the government and the dependent variables have been sourced from the other government and other organizations. 
 
-After initial exploratory data analysis, we can look for patterns in distributions of vaccination rates as well as change in vaccination rates over time and assign classes (low / mid / high). These classes can then be compared to analyze differences in the independent variables.
+With 2,665 observations, the data will be split into 75% as a training group with 2001 observations and 25% as a test group with 664 observations. Each of the machine learning models will use all the variables and we will determine the final model which has the lowest validation error. After determining the relatively best model, we can assess the variable importance levels.
 
+Finally, we can check the distributions of vaccination rates based on the most important variables and assign classes (low / mid / high). We will create two forecasts, one using the overall US vaccination rates as a time series, and another using each of the classes as independent time series. The latter group will be combined, weighted by population, and compared to the overall forecast. This will allow us to estimate when the US might reach herd immunity of 70% vaccinated. 
 
+The rates provided are based on the population considered, so the real rates including all counties will vary.
 
-To project vaccination rates into the future, three methods will be compared:
--	Vaccination rates weighted by population, as a single time series. 
--	Multiple time series projections for each class derived from exploratory data analysis
--	Multiple time series projections for each class determined by unsupervised clustering
-
-The final time series projection will be selected based on mean squared error of test data using the most recent vaccination rates, held out from the data used to train the models.
+The final time series projection will be selected based on the error of test data using the most recent vaccination rates, held out from the data used to train the models.
 
 ```{r, eval = if (full_run) TRUE else FALSE}
 
@@ -1374,6 +1404,10 @@ pred_test_results <- data.frame(rbind(
 )
 ```
 
+\pagebreak
+
+#### Model Validation Results
+
 ```{r modeling results from local path, eval = if (!full_run) TRUE else FALSE}
 
 modeling_results <- read.csv(test_results_path)
@@ -1382,6 +1416,8 @@ important_vars <- read.csv(varimp_path)
 modeling_results %>%
   arrange(RMSE)
 ```
+
+#### Variable Importance
 
 Here's a look at the most important variables of the cubist model:
 
@@ -1472,6 +1508,7 @@ right_vr <- pol_vr %>%
   filter(grp == 'right')
 ```
 
+#### Political Classes
 
 ```{r political group summary}
 
@@ -1481,11 +1518,12 @@ pol_summary <- pol_vr[1:3,] %>%
          avg_population_per_fip_in_thousands = round(tp / fips_count / 1e3, 1)
          ) %>%
   select(grp,
-         total_population_in_millions,
+         pop_in_M = total_population_in_millions,
          fips_count,
-         avg_population_per_fip_in_thousands)
+         avg_pop_per_fip_K = avg_population_per_fip_in_thousands)
 
-pol_summary
+pol_summary %>%
+  as.data.frame()
 
 # get population by group
 left_summary <- pol_vr[1:3,] %>%
@@ -1504,6 +1542,8 @@ right_summary <- pol_vr[1:3,] %>%
 right_pop <- right_summary$tp
 
 ```
+
+Since `per_gop` was by far the most important variable, we'll use it to classify each of the counties. The variable `per_gop` represents the percent of the county who voted for the GOP in the 2020 election. We can then classify each county as left leaning with less than 40% voting Republican, right leaning with greater than 60% of the county voting Republican, or in the center with 40 - 60% of the county voting Republican. 
 
 ```{r train time series models}
 
@@ -1557,6 +1597,12 @@ right_ets <- right_train %>% ets()
 
 ```
 
+The vaccine rate data at the time of publishing has 301 days of data and we'll be using 80% or 240 days of data to train the forecasting models and the remaining 20% or 61 days of data to validate the relative predictive errors.
+
+\pagebreak
+
+#### Overall Forecast Results
+
 Overall vaccine rates `auto.arima()` accuracy:
 
 ```{r eval overall ts arima}
@@ -1598,6 +1644,10 @@ ots %>%
   
 ```
 
+Looking at forecasting overall US vaccine rates using ARIMA and exponential smoothing, the ARIMA model produces a slightly more accurate forecast, which we'll use for the overall forecast.
+
+#### Retrained Final Forecast, Overall US
+
 ```{r final overall forecast}
 
 final_arima <- ots %>% auto.arima()
@@ -1620,6 +1670,16 @@ ots %>%
   geom_hline(yintercept = 0.7, lty = 3)
 
 ```
+
+After retraining the model using the full time series, we can predict that herd immunity would be reached after 2Q 2022. The 80% prediction interval suggests a possibility of reaching 70% vaccination rates before the end of 2021 and the 95% prediction interval indicates its possible at the end of the year.
+
+Note that the intervals on the chart do not reflect the reality that vaccination rates will not drop and can only go up.
+
+\pagebreak
+
+#### Political Class Forecast Results
+
+##### Left Leaning
 
 Left wing vaccine rates `auto.arima()` accuracy:
 
@@ -1662,6 +1722,12 @@ left %>%
   
 ```
 
+For the counties who leaned left politically, the exponential smoothing model produced a more accurate forecast.
+
+\pagebreak
+
+##### Moderate Leaning
+
 Center vaccine rates `auto.arima()` accuracy:
 
 ```{r eval center ts arima}
@@ -1702,6 +1768,12 @@ center %>%
   theme(legend.position = 'bottom')
   
 ```
+
+For politically moderate counties, both forecasts had low error, with ARIMA having a slight edge.
+
+\pagebreak
+
+##### Right Leaning
 
 Right wing vaccine rates `auto.arima()` accuracy:
 
@@ -1745,6 +1817,12 @@ right %>%
   
 ```
 
+Although exponential smoothing produces a lower test error using RMSE, both forecast methods are underestimating, possibly due to changes in the landscape related to vaccination mandates, surges of cases, deaths, as well as the weakening influence of Donald Trump.
+
+\pagebreak
+
+#### Forecasts by Political Affliation Class
+
 ```{r political group forecast plot}
 
 left_final_fc <- left %>% ets()
@@ -1781,6 +1859,61 @@ left %>%
 
 ```
 
+The chart above shows each of the classes with models retrained using the methods with the lowest test error. We can see that left leaning counties have the highest rate of vaccinations, followed by moderates, with conservatives trailing. Both left and moderate leaning counties are projected to hit 70% vaccination rates before 2Q 2022, which suggests that the right wing vaccination rates are pulling down the overall average rates.
+
+\pagebreak
+
+#### Comparing Final Forecasts
+
+```{r}
+
+wtg_avg_train <- (
+  (left_fe_p$mean * left_pop) + (center_fa_p$mean * center_pop) + (right_fe_p$mean * right_pop)
+) / (left_pop + center_pop + right_pop)
+
+
+ots %>%
+  autoplot(color = 'black') +
+  autolayer(fa_p, series = 'ARIMA') +
+  autolayer(wtg_avg_train, series = 'Weighted by Political Affliation') +
+  labs(color = '',
+       x = '',
+       title = 'Vaccine Rates Forecast Comparison') +
+  scale_x_yearmon() +
+  scale_y_continuous(labels = percent_format(accuracy = 1), breaks = seq(0,0.9,0.1)) +
+  theme_bw() +
+  guides(color = guide_legend()) +
+  scale_color_manual(values = c('purple','brown')) +
+  theme(legend.position = 'bottom')
+
+
+```
+
+Comparing the forecasts on the test set show both models with very low test error.
+
+Overall US vaccine rates ARIMA error:
+
+```{r eval overall ts arima again}
+# evaluate accuracy of arima
+ots_arima %>%
+  forecast(h = test_rows) %>%
+  accuracy(ots)
+```
+
+Weighted Average Time Series Test error:
+
+```{r eval wtg avg train ts ets}
+# evaluate accuracy of ets
+wtg_avg_train %>%
+  accuracy(ots)
+```
+
+The overall forecast seems to have a slightly lower error based on RMSE. Its possible that the change in trend seen in the right leaning class is being averaged in total and leading to a smoother trend overall.
+
+\pagebreak
+
+#### Final Forecast
+
 ```{r wtg avg forecast}
 
 wtg_avg_ts <- (
@@ -1805,6 +1938,21 @@ ots %>%
 
 ```
 
+Above, we see the comparison of the overall US forecast compared to the combined forecasts of political classes, weighted by population. Both models above have been retrained using the entire time series. 
+
+The politically weighted forecast slows down the overall rate and suggests herd immunity can be reached between 2Q and 3Q 2022, about a month later than the overall US model.
+
+\pagebreak
+
+### Discussion of Results
+
+The attempt to gather as many variables as possible did not lead to any surprising results and resulted in validating earlier research relating to the online behavior of conservatives [@social_media]. The percent of the population who graduated from college was the 2nd most important variable, but still about half as important as the percent of the voters in a county who voted for Donald Trump. The percent of people who did not graduate high school was the 4th most important variable, further validating the assumption that education affects an individual's ability to understand vaccination and their susceptibility to misinformation online. 
+
+The average age of mother at birth and the average weight of a baby were the 3rd and 5th most important variables in the leading cubist model, which may suggest that the lifestyle and health of mothers in a given county could predict people's affinity to vaccines. Again, both of these factors were about half as important as the percent of voters who voted for Donald Trump. It's likely that these factors are not directly related to vaccination rates and instead are related to or collinear to other factors not included in this research.
+
+Finally, using the data we have available, we can project that the US could hit herd immunity before the start of summer 2022. This would be possible if we continued vaccinating the population at the current pace, but it's entirely possible the rate of vaccinations slows and reaches a plateau as we face the sector of the population who refuse to vaccinate. This could keep us from reaching herd immunity as a nation, even if certain left leaning and moderate counties may have already reached over 70% vaccinated.
+
+Validating earlier research suggests that improving education could have long term benefits for receptiveness to the understanding of vaccines as well as reducing the impact of misinformation, while the short term strategy includes fighting misinformation and educate the public about vaccines.
 
 \pagebreak
 
